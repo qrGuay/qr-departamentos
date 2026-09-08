@@ -34,8 +34,7 @@ margin-bottom: 20px;
 box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
-textarea,
-input {
+input, textarea {
 width: 100%;
 box-sizing: border-box;
 padding: 12px;
@@ -48,7 +47,6 @@ font-size: 16px;
 
 textarea {
 min-height: 100px;
-resize: vertical;
 }
 
 button {
@@ -60,10 +58,7 @@ background: #2563eb;
 color: white;
 font-size: 16px;
 font-weight: bold;
-}
-
-button:active {
-transform: scale(0.98);
+cursor: pointer;
 }
 
 .post {
@@ -76,37 +71,54 @@ margin-top: 15px;
 font-size: 12px;
 color: #777;
 }
+
+#mensaje {
+margin-top: 10px;
+font-weight: bold;
+}
 </style>
 </head>
 
 <body>
 
 <header>
-<h1> 🏢QR Departamentos</h1>
+<h1>🏢 QR Departamentos</h1>
 <p>Tablón de Administración</p>
 </header>
 
 <main>
 
 <div class="card">
-<h2> 📝Nueva publicación</h2>
+
+<h2>📝 Nueva publicación</h2>
 
 <label>Tu nombre</label>
-<input type="text" id="author" placeholder="Escribe tu nombre">
+<input
+type="text"
+id="author"
+placeholder="Escribe tu nombre"
+>
 
 <label>Comentario</label>
-<textarea id="content" placeholder="Escribe aquí tu comentario..."></textarea>
+<textarea
+id="content"
+placeholder="Escribe aquí tu comentario..."
+></textarea>
 
 <button onclick="publicar()">
 PUBLICAR
 </button>
+
+<div id="mensaje"></div>
+
 </div>
 
 <div class="card">
+
 <h2>📋 Publicaciones</h2>
 
 <div id="posts">
-Todavía no hay publicaciones.
+Cargando publicaciones...
 </div>
 
 </div>
@@ -114,34 +126,225 @@ Todavía no hay publicaciones.
 </main>
 
 <script>
-function publicar() {
 
-const nombre = document.getElementById("author").value;
-const comentario = document.getElementById("content").value;
+// ==========================================
+// CONFIGURACIÓN DE SUPABASE
+// ==========================================
 
-if (!comentario.trim()) {
-alert("Escribe un comentario.");
+const SUPABASE_URL =
+"https://pudueiuqytyjwainzuua.supabase.co";
+
+const SUPABASE_KEY =
+"sb_publishable_VSg8gUX_7Z53EkJq6oLt4g_-v-AvR3b";
+
+
+// ==========================================
+// CARGAR PUBLICACIONES
+// ==========================================
+
+async function cargarPublicaciones() {
+
+const respuesta = await fetch(
+SUPABASE_URL +
+"/rest/v1/posts?select=*&order=created_at.desc",
+{
+headers: {
+"apikey": SUPABASE_KEY,
+"Authorization": "Bearer " + SUPABASE_KEY
+}
+}
+);
+
+if (!respuesta.ok) {
+document.getElementById("posts").innerHTML =
+"No se pudieron cargar las publicaciones.";
 return;
 }
 
-const publicaciones = document.getElementById("posts");
+const publicaciones = await respuesta.json();
 
-const nueva = document.createElement("div");
-nueva.className = "post";
+const contenedor =
+document.getElementById("posts");
 
-nueva.innerHTML = `
-<strong>${nombre || "Anónimo"}</strong>
-<p>${comentario}</p>
+if (publicaciones.length === 0) {
+
+contenedor.innerHTML =
+"Todavía no hay publicaciones.";
+
+return;
+}
+
+contenedor.innerHTML = "";
+
+publicaciones.forEach(publicacion => {
+
+const div = document.createElement("div");
+
+div.className = "post";
+
+const fecha =
+new Date(publicacion.created_at)
+.toLocaleString("es-ES");
+
+div.innerHTML = `
+<strong>${escapeHTML(
+publicacion.author_name || "Anónimo"
+)}</strong>
+
+<p>${escapeHTML(
+publicacion.content
+)}</p>
+
 <div class="date">
-Publicado ahora
+${fecha}
 </div>
 `;
 
-publicaciones.prepend(nueva);
+contenedor.appendChild(div);
+
+});
+}
+
+
+// ==========================================
+// PUBLICAR
+// ==========================================
+
+async function publicar() {
+
+const nombre =
+document.getElementById("author").value.trim();
+
+const comentario =
+document.getElementById("content").value.trim();
+
+const mensaje =
+document.getElementById("mensaje");
+
+
+if (!comentario) {
+
+mensaje.innerText =
+"Escribe un comentario.";
+
+return;
+}
+
+
+mensaje.innerText =
+"Publicando...";
+
+
+// ID del departamento Administración
+// Lo obtendremos automáticamente
+// buscando el departamento por su slug.
+
+const departamentoRespuesta =
+await fetch(
+SUPABASE_URL +
+"/rest/v1/departments?slug=eq.administracion&select=id",
+{
+headers: {
+"apikey": SUPABASE_KEY,
+"Authorization": "Bearer " + SUPABASE_KEY
+}
+}
+);
+
+
+if (!departamentoRespuesta.ok) {
+
+mensaje.innerText =
+"Error al buscar el departamento.";
+
+return;
+}
+
+
+const departamentos =
+await departamentoRespuesta.json();
+
+
+if (departamentos.length === 0) {
+
+mensaje.innerText =
+"No se encontró el departamento.";
+
+return;
+}
+
+
+const departmentId =
+departamentos[0].id;
+
+
+// Crear publicación
+
+const respuesta =
+await fetch(
+SUPABASE_URL + "/rest/v1/posts",
+{
+method: "POST",
+
+headers: {
+"Content-Type": "application/json",
+"apikey": SUPABASE_KEY,
+"Authorization": "Bearer " + SUPABASE_KEY,
+"Prefer": "return=minimal"
+},
+
+body: JSON.stringify({
+department_id: departmentId,
+author_name: nombre || "Anónimo",
+content: comentario
+})
+}
+);
+
+
+if (!respuesta.ok) {
+
+mensaje.innerText =
+"❌ No se pudo publicar.";
+
+return;
+}
+
+
+mensaje.innerText =
+"✅ Publicado correctamente.";
+
 
 document.getElementById("author").value = "";
 document.getElementById("content").value = "";
+
+
+cargarPublicaciones();
+
 }
+
+
+// ==========================================
+// SEGURIDAD
+// ==========================================
+
+function escapeHTML(text) {
+
+const div =
+document.createElement("div");
+
+div.textContent = text;
+
+return div.innerHTML;
+}
+
+
+// ==========================================
+// INICIAR
+// ==========================================
+
+cargarPublicaciones();
+
 </script>
 
 </body>
