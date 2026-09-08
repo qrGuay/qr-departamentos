@@ -237,12 +237,12 @@ mensaje.innerText =
 
 // ID del departamento Administración
 // Lo obtendremos automáticamente
-// buscando el departamento por su slug.
+// buscando el departamento por su "Slug".
 
 const departamentoRespuesta =
 await fetch(
 SUPABASE_URL +
-"/rest/v1/departments?slug=eq.administracion&select=id",
+"/rest/v1/departments?"Slug"=eq.administracion&select=id",
 {
 headers: {
 "apikey": SUPABASE_KEY,
